@@ -33,9 +33,10 @@ runcmd:
   - apt-get update
   - apt-get install -y gh
 
-  # Download and install the devbox files (setup.sh, etc.) from the
-  # dotfiles repo. Re-running this script later picks up any updates.
-  - sudo -u xinxin -H bash -c "curl -fsSL https://raw.githubusercontent.com/xinxinw1/dotfiles/main/install-dotfiles.sh | bash"
+  # Download the dotfiles installer to xinxin's home and run it for the
+  # devbox host type. Re-running ~/install-dotfiles.sh devbox later
+  # picks up any updates.
+  - sudo -u xinxin -H bash -c "curl -fsSL https://raw.githubusercontent.com/xinxinw1/dotfiles/main/install-dotfiles.sh -o ~/install-dotfiles.sh && chmod 0755 ~/install-dotfiles.sh && ~/install-dotfiles.sh devbox"
 
   - echo "Droplet bootstrap complete. SSH in as xinxin and run ~/setup.sh to finish GitHub setup and clone the repo." > /home/xinxin/BOOTSTRAP_DONE
   - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
