@@ -1,0 +1,57 @@
+#cloud-config
+
+# Update and upgrade all packages on first boot
+package_update: true
+package_upgrade: true
+
+packages:
+  - neovim
+  - ca-certificates
+  - curl
+  - gnupg
+
+users:
+  - default
+  - name: xinxin
+    gecos: xinxin
+    shell: /bin/bash
+    groups: [sudo]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+
+runcmd:
+  # Give xinxin the same authorized_keys as root
+  - mkdir -p /home/xinxin/.ssh
+  - cp /root/.ssh/authorized_keys /home/xinxin/.ssh/authorized_keys
+  - chown -R xinxin:xinxin /home/xinxin/.ssh
+  - chmod 700 /home/xinxin/.ssh
+  - chmod 600 /home/xinxin/.ssh/authorized_keys
+
+  # Install Docker Engine and the compose plugin via the official apt repo
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # Let xinxin drive docker without sudo. Takes effect at next login,
+  # which is when ~/setup.sh runs.
+  - usermod -aG docker xinxin
+
+  # Download the dotfiles installer to xinxin's home
+  - sudo -u xinxin -H curl -fsSL https://raw.githubusercontent.com/xinxinw1/dotfiles/main/install-dotfiles.sh -o /home/xinxin/install-dotfiles.sh
+  - chmod 0755 /home/xinxin/install-dotfiles.sh
+
+  # Run it for the thevenin host type. Re-running ~/install-dotfiles.sh
+  # thevenin later picks up any updates.
+  - sudo -u xinxin -H /home/xinxin/install-dotfiles.sh thevenin
+
+  - echo "Droplet bootstrap complete. Create a DigitalOcean block volume named thevenin-data, then SSH in as xinxin and run ~/setup.sh to attach the volume and bring the thevenin-nginx stack up." > /home/xinxin/BOOTSTRAP_DONE
+  - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
+
+# Reboot automatically once cloud-init finishes, but only if the
+# package upgrades actually left a restart pending
+power_state:
+  mode: reboot
+  condition: test -f /var/run/reboot-required
+  timeout: 60
