@@ -68,12 +68,12 @@ runcmd:
   - mount -a || true
 
   # Run setup.sh as xinxin, after the docker and NFS setup it depends on. It
-  # exits early if it reaches a step needing manual input (confirming DNS is
-  # pointed here before certbot issues); re-run it by hand to finish those.
+  # runs to completion unless the share has no certificate yet, in which case it
+  # stops before issuing one -- that needs DNS pointed here -- so re-run it then.
   - sudo -u xinxin -H /home/xinxin/setup.sh 2>&1 | tee /home/xinxin/setup.log
   - chown xinxin:xinxin /home/xinxin/setup.log
 
-  - echo "Droplet bootstrap complete. ~/setup.sh has already run unattended -- see ~/setup.log. Point new.xin-xin.me at this droplet's IP, then SSH in as xinxin and run ~/setup.sh again to issue the TLS certificate and bring :443 up." > /home/xinxin/BOOTSTRAP_DONE
+  - echo "Droplet bootstrap complete. ~/setup.sh has already run unattended -- see ~/setup.log. If it stopped short because new.xin-xin.me has no certificate yet, point DNS at this droplet's IP, then SSH in as xinxin and re-run ~/setup.sh to issue one and bring :443 up." > /home/xinxin/BOOTSTRAP_DONE
   - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
 
 # Reboot automatically once cloud-init finishes, but only if the
