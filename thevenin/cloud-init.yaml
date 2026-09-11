@@ -44,8 +44,8 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-  # Let xinxin drive docker without sudo. Takes effect at next login,
-  # which is when ~/setup.sh runs.
+  # Let xinxin drive docker without sudo. sudo builds the target user's groups
+  # at call time, so the setup.sh run below already has it.
   - usermod -aG docker xinxin
 
   # Download the dotfiles installer to xinxin's home
@@ -67,7 +67,13 @@ runcmd:
   - systemctl daemon-reload
   - mount -a || true
 
-  - echo "Droplet bootstrap complete. Create a DigitalOcean block volume named thevenin-data, then SSH in as xinxin and run ~/setup.sh to attach the volume and bring the thevenin-nginx stack up." > /home/xinxin/BOOTSTRAP_DONE
+  # Run setup.sh as xinxin, after the docker and NFS setup it depends on. It
+  # runs to completion unless the share has no certificate yet, in which case it
+  # stops before issuing one -- that needs DNS pointed here -- so re-run it then.
+  - sudo -u xinxin -H /home/xinxin/setup.sh 2>&1 | tee /home/xinxin/setup.log
+  - chown xinxin:xinxin /home/xinxin/setup.log
+
+  - echo "Droplet bootstrap complete. ~/setup.sh has already run unattended -- see ~/setup.log. If it stopped short because new.xin-xin.me has no certificate yet, point DNS at this droplet's IP, then SSH in as xinxin and re-run ~/setup.sh to issue one and bring :443 up." > /home/xinxin/BOOTSTRAP_DONE
   - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
 
 # Reboot automatically once cloud-init finishes, but only if the
