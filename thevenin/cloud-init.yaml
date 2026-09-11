@@ -44,8 +44,9 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-  # Let xinxin drive docker without sudo. Takes effect at next login,
-  # which is when ~/setup.sh runs.
+  # Let xinxin drive docker without sudo. Existing logins need to reconnect to
+  # pick it up, but the setup.sh run below is unaffected: sudo builds the target
+  # user's groups from /etc/group at call time, so that process already has it.
   - usermod -aG docker xinxin
 
   # Download the dotfiles installer to xinxin's home
@@ -67,7 +68,21 @@ runcmd:
   - systemctl daemon-reload
   - mount -a || true
 
-  - echo "Droplet bootstrap complete. Create a DigitalOcean block volume named thevenin-data, then SSH in as xinxin and run ~/setup.sh to attach the volume and bring the thevenin-nginx stack up." > /home/xinxin/BOOTSTRAP_DONE
+  # Bring the stack up. install-dotfiles.sh put setup.sh in xinxin's home, and
+  # this is the first point where everything it needs is in place: docker, the
+  # docker group, and the NFS share it refuses to run without. It gets no stdin,
+  # which it takes as its cue to stop before the one step that needs a human --
+  # confirming DNS points here before certbot issues -- so :80 and the rest of
+  # the stack come up now and a later `~/setup.sh` finishes TLS.
+  #
+  # tee keeps a copy where a human can find it without digging through
+  # /var/log/cloud-init-output.log; it also swallows a non-zero exit from
+  # setup.sh (an unreachable NFS share, say) so the notes below still get
+  # written for whoever SSHes in to investigate.
+  - sudo -u xinxin -H /home/xinxin/setup.sh 2>&1 | tee /home/xinxin/setup.log
+  - chown xinxin:xinxin /home/xinxin/setup.log
+
+  - echo "Droplet bootstrap complete. ~/setup.sh has already run unattended -- see ~/setup.log. Point new.xin-xin.me at this droplet's IP, then SSH in as xinxin and run ~/setup.sh again to issue the TLS certificate and bring :443 up." > /home/xinxin/BOOTSTRAP_DONE
   - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
 
 # Reboot automatically once cloud-init finishes, but only if the
