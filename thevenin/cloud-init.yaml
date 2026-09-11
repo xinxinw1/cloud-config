@@ -48,12 +48,14 @@ runcmd:
   # thevenin later picks up any updates.
   - sudo -u xinxin -H /home/xinxin/install-dotfiles.sh thevenin
 
-  # Mount the DigitalOcean NFS share at /mnt/thevenin-nfs, persistently.
-  # nofail + x-systemd.automount mean the droplet still boots (and this
-  # bootstrap still succeeds) when the share isn't reachable; systemd
-  # mounts it on first access instead and unmounts after 10 min idle.
-  - mkdir -p /mnt/thevenin-nfs
-  - grep -qs ' /mnt/thevenin-nfs ' /etc/fstab || echo "10.128.0.2:/2046725/a3cfa244-2272-4eee-aa17-ca251a111cb7 /mnt/thevenin-nfs nfs _netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600,vers=4.1 0 0" >> /etc/fstab
+  # Mount the DigitalOcean NFS share at /mnt/thevenin_data, persistently.
+  # That path is the DATA_DIR the thevenin-nginx compose stack reads, so the
+  # share backs certbot, text-edit and mysql. nofail + x-systemd.automount
+  # mean the droplet still boots (and this bootstrap still succeeds) when the
+  # share isn't reachable; systemd mounts it on first access instead and
+  # unmounts after 10 min idle.
+  - mkdir -p /mnt/thevenin_data
+  - grep -qs ' /mnt/thevenin_data ' /etc/fstab || echo "10.128.0.2:/2046725/a3cfa244-2272-4eee-aa17-ca251a111cb7 /mnt/thevenin_data nfs _netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600,vers=4.1 0 0" >> /etc/fstab
   - systemctl daemon-reload
   - mount -a || true
 
