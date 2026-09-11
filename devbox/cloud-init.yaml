@@ -15,6 +15,14 @@ users:
     groups: [sudo]
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
 
+write_files:
+  # Record the host type so install-dotfiles.sh (and anything else that
+  # needs to know what this box is) can read it instead of being told.
+  - path: /etc/host-type
+    permissions: "0644"
+    content: |
+      devbox
+
 runcmd:
   # Give xinxin the same authorized_keys as root
   - mkdir -p /home/xinxin/.ssh
@@ -37,9 +45,9 @@ runcmd:
   - sudo -u xinxin -H curl -fsSL https://raw.githubusercontent.com/xinxinw1/dotfiles/main/install-dotfiles.sh -o /home/xinxin/install-dotfiles.sh
   - chmod 0755 /home/xinxin/install-dotfiles.sh
 
-  # Run it for the devbox host type. Re-running ~/install-dotfiles.sh
-  # devbox later picks up any updates.
-  - sudo -u xinxin -H /home/xinxin/install-dotfiles.sh devbox
+  # Run it. It reads the host type from /etc/host-type written above, so
+  # re-running ~/install-dotfiles.sh later picks up any updates.
+  - sudo -u xinxin -H /home/xinxin/install-dotfiles.sh
 
   - echo "Droplet bootstrap complete. SSH in as xinxin and run ~/setup.sh to finish GitHub setup and clone the repo." > /home/xinxin/BOOTSTRAP_DONE
   - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
