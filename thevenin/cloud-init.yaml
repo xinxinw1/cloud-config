@@ -44,9 +44,8 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-  # Let xinxin drive docker without sudo. Existing logins need to reconnect to
-  # pick it up, but the setup.sh run below is unaffected: sudo builds the target
-  # user's groups from /etc/group at call time, so that process already has it.
+  # Let xinxin drive docker without sudo. sudo builds the target user's groups
+  # at call time, so the setup.sh run below already has it.
   - usermod -aG docker xinxin
 
   # Download the dotfiles installer to xinxin's home
@@ -68,17 +67,9 @@ runcmd:
   - systemctl daemon-reload
   - mount -a || true
 
-  # Bring the stack up. install-dotfiles.sh put setup.sh in xinxin's home, and
-  # this is the first point where everything it needs is in place: docker, the
-  # docker group, and the NFS share it refuses to run without. It gets no stdin,
-  # which it takes as its cue to stop before the one step that needs a human --
-  # confirming DNS points here before certbot issues -- so :80 and the rest of
-  # the stack come up now and a later `~/setup.sh` finishes TLS.
-  #
-  # tee keeps a copy where a human can find it without digging through
-  # /var/log/cloud-init-output.log; it also swallows a non-zero exit from
-  # setup.sh (an unreachable NFS share, say) so the notes below still get
-  # written for whoever SSHes in to investigate.
+  # Run setup.sh as xinxin, after the docker and NFS setup it depends on. It
+  # exits early if it reaches a step needing manual input (confirming DNS is
+  # pointed here before certbot issues); re-run it by hand to finish those.
   - sudo -u xinxin -H /home/xinxin/setup.sh 2>&1 | tee /home/xinxin/setup.log
   - chown xinxin:xinxin /home/xinxin/setup.log
 
