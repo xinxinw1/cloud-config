@@ -48,8 +48,14 @@ runcmd:
   # at call time, so the setup.sh run below already has it.
   - usermod -aG docker xinxin
 
-  # Download the dotfiles installer to xinxin's home
-  - sudo -u xinxin -H curl -fsSL https://raw.githubusercontent.com/xinxinw1/dotfiles/main/install-dotfiles.sh -o /home/xinxin/install-dotfiles.sh
+  # Download the dotfiles installer to xinxin's home. This one comes from the
+  # latest published release, not main -- this droplet serves new.xin-xin.me and
+  # should bootstrap from what was cut, not from whatever landed on main an hour
+  # ago. devbox and thevenin-dev still take main. The URL resolves only because
+  # the dotfiles release workflow attaches install-dotfiles.sh to each release:
+  # that endpoint serves attached assets only, and raw.githubusercontent has no
+  # "latest" ref to use instead.
+  - sudo -u xinxin -H curl -fsSL https://github.com/xinxinw1/dotfiles/releases/latest/download/install-dotfiles.sh -o /home/xinxin/install-dotfiles.sh
   - chmod 0755 /home/xinxin/install-dotfiles.sh
 
   # Run it. It reads the host type from /etc/host-type written above, so
