@@ -1,0 +1,87 @@
+#cloud-config
+
+# Update and upgrade all packages on first boot
+package_update: true
+package_upgrade: true
+
+packages:
+  - neovim
+  - ca-certificates
+  - curl
+  - gnupg
+  # NFS client, needed to mount the thevenin-nfs share
+  - nfs-common
+
+users:
+  - default
+  - name: xinxin
+    gecos: xinxin
+    shell: /bin/bash
+    groups: [sudo]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+
+write_files:
+  # Record the host type so install-dotfiles.sh (and anything else that
+  # needs to know what this box is) can read it instead of being told.
+  - path: /etc/host-type
+    permissions: "0644"
+    content: |
+      thevenin-dev
+
+runcmd:
+  # Give xinxin the same authorized_keys as root
+  - mkdir -p /home/xinxin/.ssh
+  - cp /root/.ssh/authorized_keys /home/xinxin/.ssh/authorized_keys
+  - chown -R xinxin:xinxin /home/xinxin/.ssh
+  - chmod 700 /home/xinxin/.ssh
+  - chmod 600 /home/xinxin/.ssh/authorized_keys
+
+  # Install Docker Engine and the compose plugin via the official apt repo
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # Let xinxin drive docker without sudo. sudo builds the target user's groups
+  # at call time, so the setup.sh run below already has it.
+  - usermod -aG docker xinxin
+
+  # Download the dotfiles installer to xinxin's home
+  - sudo -u xinxin -H curl -fsSL https://raw.githubusercontent.com/xinxinw1/dotfiles/main/install-dotfiles.sh -o /home/xinxin/install-dotfiles.sh
+  - chmod 0755 /home/xinxin/install-dotfiles.sh
+
+  # Run it. It reads the host type from /etc/host-type written above, so
+  # re-running ~/install-dotfiles.sh later picks up any updates.
+  - sudo -u xinxin -H /home/xinxin/install-dotfiles.sh
+
+  # Mount the DigitalOcean NFS share at /mnt/thevenin_data, persistently. Same
+  # path as thevenin, a different share: that is the whole of the isolation
+  # between this droplet and production, so the export id below is the one line
+  # here that must not be copied back.
+  # That path is the DATA_DIR the thevenin-nginx compose stack reads, so the
+  # share backs certbot, text-edit and mysql. nofail + x-systemd.automount
+  # mean the droplet still boots (and this bootstrap still succeeds) when the
+  # share isn't reachable; systemd mounts it on first access instead and
+  # unmounts after 10 min idle.
+  - mkdir -p /mnt/thevenin_data
+  - grep -qs ' /mnt/thevenin_data ' /etc/fstab || echo "10.128.0.2:/2046725/8b07a14e-76a6-4c48-8ff9-b83d9977ea61 /mnt/thevenin_data nfs _netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600,vers=4.1 0 0" >> /etc/fstab
+  - systemctl daemon-reload
+  - mount -a || true
+
+  # Run setup.sh as xinxin, after the docker and NFS setup it depends on. It
+  # runs to completion unless the share has no certificate yet, in which case it
+  # stops before issuing one -- that needs DNS pointed here -- so re-run it then.
+  - sudo -u xinxin -H /home/xinxin/setup.sh 2>&1 | tee /home/xinxin/setup.log
+  - chown xinxin:xinxin /home/xinxin/setup.log
+
+  - echo "Droplet bootstrap complete. ~/setup.sh has already run unattended -- see ~/setup.log. If it stopped short because xin-xin-test.me has no certificate yet, point DNS at this droplet's IP, then SSH in as xinxin and re-run ~/setup.sh to issue one and bring :443 up." > /home/xinxin/BOOTSTRAP_DONE
+  - chown xinxin:xinxin /home/xinxin/BOOTSTRAP_DONE
+
+# Reboot automatically once cloud-init finishes, but only if the
+# package upgrades actually left a restart pending
+power_state:
+  mode: reboot
+  condition: test -f /var/run/reboot-required
+  timeout: 60
